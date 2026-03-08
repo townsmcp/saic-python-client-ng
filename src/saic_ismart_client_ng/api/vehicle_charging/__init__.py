@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime as _dt
 from datetime import datetime, time, timedelta
 
 from saic_ismart_client_ng.api.base import AbstractSaicApi
@@ -177,11 +178,17 @@ class SaicVehicleChargingApi(AbstractSaicApi):
         vin: str,
         *,
         start_time: time,
+        tz: _dt.tzinfo | None = None,
     ) -> None:
-        start_date = datetime.now().replace(
+        """Enable scheduled battery heating at *start_time* in the given timezone.
+
+        If *tz* is ``None`` the system local timezone is used (legacy behaviour).
+        """
+        now = datetime.now(tz=tz) if tz is not None else datetime.now().astimezone()
+        start_date = now.replace(
             hour=start_time.hour, minute=start_time.minute, second=0, microsecond=0
         )
-        if start_date < datetime.now():
+        if start_date < now:
             start_date = start_date + timedelta(days=1)
         body = ScheduledBatteryHeatingRequest(
             vin=sha256_hex_digest(vin),

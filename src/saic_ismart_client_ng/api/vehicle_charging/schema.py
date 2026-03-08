@@ -596,6 +596,18 @@ class ScheduledBatteryHeatingResp:
 
     @property
     def decoded_start_time(self) -> datetime.time | None:
+        """Decode startTime using the system timezone. Prefer decode_start_time(tz) instead."""
+        return self.decode_start_time()
+
+    def decode_start_time(
+        self, tz: datetime.tzinfo | None = None
+    ) -> datetime.time | None:
+        """Decode the UTC epoch-millis startTime to a local time in the given timezone.
+
+        If *tz* is ``None`` the system local timezone is used (legacy behaviour).
+        """
         if self.startTime is None:
             return None
-        return datetime.datetime.fromtimestamp(self.startTime / 1000).time()
+        utc_dt = datetime.datetime.fromtimestamp(self.startTime / 1000, tz=datetime.UTC)
+        local_dt = utc_dt.astimezone(tz) if tz is not None else utc_dt.astimezone()
+        return local_dt.time()

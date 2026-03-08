@@ -192,3 +192,5 @@ junit/
 
 # CodeBuddy
 .codebuddy/
+CLAUDE.md
+.DS_Store
