@@ -69,6 +69,7 @@ class BmsChargingStatusCode(Enum):
     CHARGING_10 = 10  # Potentially DC fast charging
     SUPER_OFFBOARD_CHARGING = 11
     CHARGING_12 = 12
+    V2X_DISCHARGING = 13
 
     @staticmethod
     def to_code(code: int) -> BmsChargingStatusCode | None:
@@ -200,7 +201,7 @@ class ChargingStatus:
 @dataclass
 class ChargeStatusResp:
     # pylint: disable=import-outside-toplevel
-    from saic_ismart_client_ng.api.schema import GpsPosition
+    from saic_ismart_client_ng.api.schema import GpsPosition  # noqa: PLC0415
 
     chargingStatus: ChargingStatus | None = None
     gpsPosition: GpsPosition | None = None
