@@ -2,9 +2,9 @@
 
 ## About
 
-A Python package for interacting with the MG iSMART API.
+A Python package for interacting with the MG iSmart API.
 
-MG iSMART is the connectivity system in your MG car (MG5 MG4, ZS...).
+MG iSmart is the connectivity system in your MG car (MG5 MG4, ZS, MGS5, MGS6 ...).
 
 Supported functionality (partial list, check the code for more)
 
@@ -23,4 +23,8 @@ Supported functionality (partial list, check the code for more)
 
 ## Prerequisites
 
-You have an iSMART account (can be created in the iSMART app)
+You have an iSmart account (can be created in the iSmart app)
+
+## Credit
+
+This is a maintained fork of [SAIC-iSmart-API/saic-python-client-ng](https://github.com/SAIC-iSmart-API/saic-python-client-ng) by Giovanni Condello, used by the [mg-saic-ha](https://github.com/townsmcp/mg-saic-ha) Home Assistant integration. Licensed under MIT; see [LICENSE](LICENSE).
