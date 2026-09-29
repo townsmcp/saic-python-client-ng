@@ -118,9 +118,10 @@ def test_front_seats_are_physical_sides_with_old_names_kept() -> None:
 
     assert RvcParamsId.HEATED_SEAT_FRONT_LEFT.value == 17
     assert RvcParamsId.HEATED_SEAT_FRONT_RIGHT.value == 18
-    # The original names still work and are the same parameters.
-    assert RvcParamsId.HEATED_SEAT_DRIVER is RvcParamsId.HEATED_SEAT_FRONT_LEFT
-    assert RvcParamsId.HEATED_SEAT_PASSENGER is RvcParamsId.HEATED_SEAT_FRONT_RIGHT
+    # The original names still work and are the same parameters. (Looked up
+    # by name: mypy doesn't know enum aliases share a member.)
+    assert RvcParamsId["HEATED_SEAT_DRIVER"] is RvcParamsId.HEATED_SEAT_FRONT_LEFT
+    assert RvcParamsId["HEATED_SEAT_PASSENGER"] is RvcParamsId.HEATED_SEAT_FRONT_RIGHT
 
 
 def test_both_front_seats_command_unchanged() -> None:
