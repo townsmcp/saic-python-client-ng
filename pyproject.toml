@@ -3,7 +3,7 @@ name = "mg-saic-client"
 version = "0.9.5"
 description = "SAIC next gen client library (MG iSMART)"
 authors = [
-    { name = "Giovanni Condello", email = "saic-python-client@nanomad.net" },
+    { name = "James Townsend" },
 ]
 readme = "README.md"
 
