@@ -71,6 +71,12 @@ class BasicVehicleStatus:
     dippedBeamStatus: int | None = None
     driverDoor: int | None = None
     driverWindow: int | None = None
+    # Seen in MG S6 EV responses (value -128, i.e. not reported) with no
+    # confirmed meaning yet. Kept so they show up in logs if a car ever
+    # reports real values. Treat -128 as "no value".
+    elecRangeDspMode: int | None = None
+    elecRangeStdA: int | None = None
+    elecRangeStdB: int | None = None
     engineStatus: int | None = None
     extendedData1: int | None = None
     extendedData2: int | None = None
@@ -92,13 +98,20 @@ class BasicVehicleStatus:
     passengerWindow: int | None = None
     powerMode: int | None = None
     rearLeftDoor: int | None = None
+    rearLeftOSTyrePressure: int | None = None  # meaning unconfirmed; -128 = none
     rearLeftTyrePressure: int | None = None
     rearLeftWindow: int | None = None
     rearRightDoor: int | None = None
+    rearRightOSTyrePressure: int | None = None  # meaning unconfirmed; -128 = none
     rearRightTyrePressure: int | None = None
     rearRightWindow: int | None = None
     remoteClimateStatus: int | None = None
     rmtHtdRrWndSt: int | None = None
+    # Rear (second row) heated seats. Reported by the car whatever turned them
+    # on (app, remote command or the in-car buttons). The iSmart app and the
+    # car only offer on/off for the rear: 0 = off, non-zero = on.
+    secondRowLeftSeatHeatLevel: int | None = None
+    secondRowRightSeatHeatLevel: int | None = None
     sideLightStatus: int | None = None
     steeringHeatLevel: int | None = None
     steeringWheelHeatFailureReason: int | None = None
@@ -147,12 +160,22 @@ class RvcParamsId(Enum):
     WINDOW_3 = 11
     WINDOW_4 = 12
     WINDOW_OPEN_CLOSE = 13
-    HEATED_SEAT_DRIVER = 17
-    HEATED_SEAT_PASSENGER = 18
+    # Heated seats are addressed by PHYSICAL side, not driver/passenger:
+    # 17 is the front-left seat and 18 the front-right on both left- and
+    # right-hand drive cars (confirmed on a right-hand drive MG S6 EV, where
+    # the app's front-left seat sends 17). The DRIVER/PASSENGER names are the
+    # original ones, kept as aliases; they're only right for left-hand drive.
+    HEATED_SEAT_FRONT_LEFT = 17
+    HEATED_SEAT_FRONT_RIGHT = 18
+    HEATED_SEAT_DRIVER = 17  # noqa: PIE796 - alias of HEATED_SEAT_FRONT_LEFT
+    HEATED_SEAT_PASSENGER = 18  # noqa: PIE796 - alias of HEATED_SEAT_FRONT_RIGHT
     FAN_SPEED = 19
     TEMPERATURE = 20
     AC_ON_OFF = 22
     REMOTE_HEAT_REAR_WINDOW = 23
+    HEATED_STEERING_WHEEL = 24
+    HEATED_SEAT_REAR_LEFT = 25
+    HEATED_SEAT_REAR_RIGHT = 26
     PARAMS_MAX = 0xFF
 
 
@@ -175,6 +198,7 @@ class RvcReqType(Enum):
     HEATED_SEATS = "5"
     CLIMATE = "6"
     AIR_CLEAN = "7"
+    HEATED_STEERING_WHEEL = "8"
     ENGINE_CONTROL = "17"
     REMOTE_REFRESH = "18"
     REMOTE_IMMOBILIZER = "19"
