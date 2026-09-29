@@ -111,3 +111,18 @@ def test_rear_heated_seat_on_is_the_apps_level() -> None:
 def test_heated_seat_rejects_out_of_range_levels(level: int) -> None:
     with pytest.raises(ValueError, match="0-3"):
         _sent("control_heated_seat", seat=HeatedSeat.FRONT_LEFT, level=level)
+
+
+def test_front_seats_are_physical_sides_with_old_names_kept() -> None:
+    from saic_ismart_client_ng.api.vehicle import RvcParamsId  # noqa: PLC0415
+
+    assert RvcParamsId.HEATED_SEAT_FRONT_LEFT.value == 17
+    assert RvcParamsId.HEATED_SEAT_FRONT_RIGHT.value == 18
+    # The original names still work and are the same parameters.
+    assert RvcParamsId.HEATED_SEAT_DRIVER is RvcParamsId.HEATED_SEAT_FRONT_LEFT
+    assert RvcParamsId.HEATED_SEAT_PASSENGER is RvcParamsId.HEATED_SEAT_FRONT_RIGHT
+
+
+def test_both_front_seats_command_unchanged() -> None:
+    _, params, _ = _sent("control_heated_seats", left_side_level=1, right_side_level=3)
+    assert params == [(17, b"\x01"), (18, b"\x03"), (255, b"\x00\x00\x00\x00")]
