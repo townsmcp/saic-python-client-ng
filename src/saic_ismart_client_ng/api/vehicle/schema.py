@@ -71,6 +71,12 @@ class BasicVehicleStatus:
     dippedBeamStatus: int | None = None
     driverDoor: int | None = None
     driverWindow: int | None = None
+    # Seen in MG S6 EV responses (value -128, i.e. not reported) with no
+    # confirmed meaning yet. Kept so they show up in logs if a car ever
+    # reports real values. Treat -128 as "no value".
+    elecRangeDspMode: int | None = None
+    elecRangeStdA: int | None = None
+    elecRangeStdB: int | None = None
     engineStatus: int | None = None
     extendedData1: int | None = None
     extendedData2: int | None = None
@@ -92,9 +98,11 @@ class BasicVehicleStatus:
     passengerWindow: int | None = None
     powerMode: int | None = None
     rearLeftDoor: int | None = None
+    rearLeftOSTyrePressure: int | None = None  # meaning unconfirmed; -128 = none
     rearLeftTyrePressure: int | None = None
     rearLeftWindow: int | None = None
     rearRightDoor: int | None = None
+    rearRightOSTyrePressure: int | None = None  # meaning unconfirmed; -128 = none
     rearRightTyrePressure: int | None = None
     rearRightWindow: int | None = None
     remoteClimateStatus: int | None = None
@@ -159,6 +167,8 @@ class RvcParamsId(Enum):
     AC_ON_OFF = 22
     REMOTE_HEAT_REAR_WINDOW = 23
     HEATED_STEERING_WHEEL = 24
+    HEATED_SEAT_REAR_LEFT = 25
+    HEATED_SEAT_REAR_RIGHT = 26
     PARAMS_MAX = 0xFF
 
 

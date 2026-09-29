@@ -20,7 +20,10 @@ MGS6_STATUS = """{
     "remoteClimateStatus": 0,
     "mileage": -128,
     "fuelRangeElec": 3430,
+    "rearLeftOSTyrePressure": -128,
     "rearRightOSTyrePressure": -128,
+    "elecRangeStdA": -128,
+    "elecRangeStdB": -128,
     "elecRangeDspMode": -128
   },
   "extendedVehicleStatus": {"alertDataSum": [0, 0, 0]},
@@ -61,6 +64,15 @@ class TestVehicleStatusResp(unittest.TestCase):
         assert status.basicVehicleStatus is not None
         assert status.basicVehicleStatus.secondRowLeftSeatHeatLevel is None
         assert status.basicVehicleStatus.secondRowRightSeatHeatLevel is None
+
+    def test_unconfirmed_fields_are_kept(self) -> None:
+        # Meaning not known yet (-128 = not reported on the MG S6 EV); kept
+        # so they appear in logs if a car reports real values.
+        assert self.basic.rearLeftOSTyrePressure == -128
+        assert self.basic.rearRightOSTyrePressure == -128
+        assert self.basic.elecRangeStdA == -128
+        assert self.basic.elecRangeStdB == -128
+        assert self.basic.elecRangeDspMode == -128
 
     def test_rest_of_the_status_is_unchanged(self) -> None:
         assert self.basic.lockStatus == 1

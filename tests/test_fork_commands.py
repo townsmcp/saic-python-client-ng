@@ -14,6 +14,10 @@ import pytest
 
 from saic_ismart_client_ng import SaicApi
 from saic_ismart_client_ng.api.vehicle import RvcReqType
+from saic_ismart_client_ng.api.vehicle.climate import (
+    REAR_HEATED_SEAT_ON_LEVEL,
+    HeatedSeat,
+)
 from saic_ismart_client_ng.api.vehicle.windows import DoorWindowsAction
 from saic_ismart_client_ng.crypto_utils import sha256_hex_digest
 from saic_ismart_client_ng.model import SaicApiConfiguration
@@ -74,3 +78,36 @@ def test_control_windows_open_value_unchanged() -> None:
     # The original helper keeps its open value (3) for other models.
     _, params, _ = _sent("control_windows", should_open=True, windows=[])
     assert params[-1] == (13, b"\x03")
+
+
+@pytest.mark.parametrize(
+    ("seat", "param_id"),
+    [
+        (HeatedSeat.FRONT_LEFT, 17),
+        (HeatedSeat.FRONT_RIGHT, 18),
+        (HeatedSeat.REAR_LEFT, 25),
+        (HeatedSeat.REAR_RIGHT, 26),
+    ],
+)
+@pytest.mark.parametrize("level", [0, 1, 2, 3])
+def test_heated_seat_one_seat_only(seat: HeatedSeat, param_id: int, level: int) -> None:
+    req_type, params, vin = _sent("control_heated_seat", seat=seat, level=level)
+    assert req_type == "5"
+    assert params == [(param_id, bytes([level]))]
+    assert vin == sha256_hex_digest(VIN)
+
+
+def test_rear_heated_seat_on_is_the_apps_level() -> None:
+    assert REAR_HEATED_SEAT_ON_LEVEL == 3
+    _, params, _ = _sent(
+        "control_heated_seat",
+        seat=HeatedSeat.REAR_LEFT,
+        level=REAR_HEATED_SEAT_ON_LEVEL,
+    )
+    assert params == [(25, b"\x03")]
+
+
+@pytest.mark.parametrize("level", [-1, 4])
+def test_heated_seat_rejects_out_of_range_levels(level: int) -> None:
+    with pytest.raises(ValueError, match="0-3"):
+        _sent("control_heated_seat", seat=HeatedSeat.FRONT_LEFT, level=level)
