@@ -1,6 +1,6 @@
 [project]
 name = "mg-saic-client"
-version = "0.9.5"
+version = "0.9.6"
 description = "SAIC next gen client library (MG iSMART)"
 authors = [
     { name = "James Townsend" },
