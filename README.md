@@ -23,6 +23,14 @@ Supported functionality (partial list, check the code for more)
 * door windows: close, ventilate or fully open
 
 
+## Errors
+
+Every error is a `SaicApiException` (or a subclass). Besides the message text, it carries SAIC's reply as separate values, so you don't need to parse the text:
+
+* `return_code`: SAIC's numeric code (see `SaicReturnCode`), or `None`
+* `saic_message`: the message on its own
+* checks for the common cases: `is_vehicle_unreachable` (code 4), `is_request_rejected` (code 8), `is_vehicle_not_locked`, `is_logged_out` and `is_unexpected_failure`
+
 ## Prerequisites
 
 You have an iSmart account (can be created in the iSmart app)
