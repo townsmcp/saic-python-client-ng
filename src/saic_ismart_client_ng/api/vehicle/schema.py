@@ -146,6 +146,35 @@ class VehicleStatusResp:
     statusTime: int | None = None
 
 
+@dataclass
+class VehicleStatusCacheResp:
+    """Reply of ``/vehicle/status/cache``: SAIC's stored copy of the car's status.
+
+    The iSmart app reads this once when it opens; the reply comes back in
+    about 0.2 s without the car being asked, so reading it doesn't wake the
+    car. The car updates the copy by itself: when plugged in, when a charge
+    starts, when switched off on arrival, and every few hours while parked
+    (seen on an MG S6 EV and an MG HS PHEV).
+
+    Kept loose on purpose: ``basicVehicleStatus`` and ``gpsPosition`` are the
+    fields exactly as SAIC sent them, so a field this library doesn't know
+    about is never dropped. ``basicVehicleStatus`` is a cut-down status (about
+    20 fields: lock, bonnet, boot, windows, tyre pressures, battery %
+    ``extendedData1``, charging flag ``extendedData2``, electric range,
+    odometer, engine, remote climate); there is no 12 V voltage, power mode,
+    doors or temperatures. The values aren't always right: treat
+    ``statusTime`` and the charging flag as the reliable parts.
+    """
+
+    basicVehicleStatus: dict[str, Any] | None = None
+    gpsPosition: dict[str, Any] | None = None
+    # When SAIC last heard from the car (epoch seconds).
+    statusTime: int | None = None
+    # SAIC's own flag. It stays at 1 even with the car asleep for hours, so
+    # it doesn't tell whether the car is awake.
+    onlineStatus: int | None = None
+
+
 class RvcParamsId(Enum):
     FIND_MY_CAR_ENABLE = 1
     FIND_MY_CAR_HORN = 2
