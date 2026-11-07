@@ -109,7 +109,10 @@ class SaicVehicleClimateApi(SaicVehicleApi):
 
         Front seats: 0 off, 1 low, 2 medium, 3 high. Rear seats are on/off
         only (in the app and in the car): send ``REAR_HEATED_SEAT_ON_LEVEL``
-        (3, what the app sends) for on and 0 for off.
+        (3, what the app sends) for on and 0 for off. The car then reports an
+        active rear seat as 1, not 3, in ``secondRowLeftSeatHeatLevel`` /
+        ``secondRowRightSeatHeatLevel`` (checked on an MG S6 EV), so read
+        those as on/off.
         """
         if not 0 <= level <= 3:
             msg = f"Heated seat level must be 0-3, got {level}"

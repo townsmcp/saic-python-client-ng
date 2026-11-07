@@ -19,5 +19,6 @@ class HeatedSeat(Enum):
     REAR_RIGHT = RvcParamsId.HEATED_SEAT_REAR_RIGHT
 
 
-# Rear seats are on/off only; the iSmart app sends this level for "on".
+# Rear seats are on/off only; the iSmart app sends this level for "on". The car
+# reports an active rear seat as 1 in its status, not 3.
 REAR_HEATED_SEAT_ON_LEVEL = 3

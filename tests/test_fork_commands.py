@@ -18,6 +18,7 @@ from saic_ismart_client_ng.api.vehicle.climate import (
     REAR_HEATED_SEAT_ON_LEVEL,
     HeatedSeat,
 )
+from saic_ismart_client_ng.api.vehicle.locks import TailgateAction
 from saic_ismart_client_ng.api.vehicle.windows import DoorWindowsAction
 from saic_ismart_client_ng.crypto_utils import sha256_hex_digest
 from saic_ismart_client_ng.model import SaicApiConfiguration
@@ -127,3 +128,25 @@ def test_front_seats_are_physical_sides_with_old_names_kept() -> None:
 def test_both_front_seats_command_unchanged() -> None:
     _, params, _ = _sent("control_heated_seats", left_side_level=1, right_side_level=3)
     assert params == [(17, b"\x01"), (18, b"\x03"), (255, b"\x00\x00\x00\x00")]
+
+
+@pytest.mark.parametrize(
+    ("action", "value"), [(TailgateAction.OPEN, 1), (TailgateAction.CLOSE, 2)]
+)
+def test_power_tailgate(action: TailgateAction, value: int) -> None:
+    req_type, params, vin = _sent("control_tailgate", action=action)
+    assert req_type == "9"
+    assert params == [(31, bytes([value]))]
+    assert vin == sha256_hex_digest(VIN)
+
+
+def test_open_tailgate_latch_release_unchanged() -> None:
+    req_type, params, _ = _sent("open_tailgate")
+    assert req_type == "2"
+    assert params == [
+        (4, b"\x00"),
+        (5, b"\x00"),
+        (6, b"\x00"),
+        (7, b"\x02"),
+        (255, b"\x00\x00\x00\x00"),
+    ]
