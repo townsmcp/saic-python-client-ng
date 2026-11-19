@@ -14,6 +14,7 @@ class SaicApiConfiguration:
         region: str = "eu",
         sms_delivery_delay: float = 3.0,
         read_timeout: float = 5.0,
+        push_token: str | None = None,
     ) -> None:
         self.__username = username
         self.__password = password
@@ -24,6 +25,7 @@ class SaicApiConfiguration:
         self.__region = region
         self.__sms_delivery_delay = sms_delivery_delay
         self.__read_timeout = read_timeout
+        self.__push_token = push_token
 
     @property
     def username(self) -> str:
@@ -60,3 +62,17 @@ class SaicApiConfiguration:
     @property
     def read_timeout(self) -> float:
         return self.__read_timeout
+
+    @property
+    def push_token(self) -> str | None:
+        """An FCM registration token to bind to the session at login.
+
+        When set, login presents it the way the Android app does, so SAIC
+        delivers real-time pushes to that registration. It can be changed at
+        any time; the next login (including an automatic re-login) uses it.
+        """
+        return self.__push_token
+
+    @push_token.setter
+    def push_token(self, value: str | None) -> None:
+        self.__push_token = value or None

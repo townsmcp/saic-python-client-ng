@@ -24,6 +24,7 @@ from saic_ismart_client_ng.exceptions import (
     SaicLogoutException,
 )
 from saic_ismart_client_ng.net.client import SaicApiClient
+from saic_ismart_client_ng.push_binding import PUSH_DEVICE_ID_SUFFIX, PUSH_DEVICE_TYPE
 
 if TYPE_CHECKING:
     from collections.abc import MutableMapping
@@ -63,17 +64,25 @@ class AbstractSaicApi:
             "Accept": "application/json",
             "Authorization": "Basic c3dvcmQ6c3dvcmRfc2VjcmV0",
         }
-        firebase_device_id = (
-            "simulator*********************************************"
-            + str(int(datetime.datetime.now().timestamp()))
-        )
+        if push_token := self.__configuration.push_token:
+            # Bind this session to a real FCM registration, exactly as the
+            # Android app does, so SAIC sends real-time pushes to it.
+            device_id = f"{push_token}###{PUSH_DEVICE_ID_SUFFIX}"
+            device_type = PUSH_DEVICE_TYPE
+        else:
+            firebase_device_id = (
+                "simulator*********************************************"
+                + str(int(datetime.datetime.now().timestamp()))
+            )
+            device_id = f"{firebase_device_id}###com.saicmotor.europecar"
+            device_type = "0"  # 2 for huawei
         form_body = {
             "grant_type": "password",
             "username": self.__configuration.username,
             "password": sha1_hex_digest(self.__configuration.password),
             "scope": "all",
-            "deviceId": f"{firebase_device_id}###com.saicmotor.europecar",
-            "deviceType": "0",  # 2 for huawei
+            "deviceId": device_id,
+            "deviceType": device_type,
             "language": "EN",
         }
 

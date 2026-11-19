@@ -1,0 +1,15 @@
+saic-python-client-ng
+
+The package `saic_ismart_client_ng.push` contains material derived from
+https://github.com/fano0001/home-assistant-mazda (Apache License 2.0; full text
+in LICENSES/Apache-2.0-home-assistant-mazda.txt):
+
+  * saic_ismart_client_ng/push/_proto/*_pb2.py -- generated protocol buffer
+    modules for the Android check-in and MCS wire formats, copied unmodified.
+  * saic_ismart_client_ng/push/register.py and mcs.py -- the GCM check-in,
+    Firebase Installations and register3 flow, and the MCS framing, follow the
+    structure of that project's pymazda/push package. They were rewritten to use
+    httpx, SAIC's Firebase constants, a separate send/receive framing state,
+    persistent-id handling, and dead-connection detection.
+
+All other code in this repository is MIT licensed (see LICENSE).
