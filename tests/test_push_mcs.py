@@ -224,3 +224,52 @@ async def test_stop_closes_everything() -> None:
         before = len(server.connections)
         await asyncio.sleep(0.2)
         assert len(server.connections) == before  # no reconnect after stop
+
+
+@pytest.mark.asyncio
+async def test_stream_ids_received_are_reported_back_to_the_server() -> None:
+    async with FakeMcsServer() as server:
+        client = _client(server, _ignore, client_heartbeat_interval=30.0)
+        await client.start()
+        await eventually(lambda: client.connected)
+        conn = server.connections[0]
+        # LoginResponse (1), two data messages (2, 3), then a ping (4).
+        await conn.send(make_data("p1", messageType="323"))
+        await conn.send(make_data("p2", messageType="323"))
+        await conn.send(HeartbeatPing())
+        await eventually(lambda: conn.of_type(HeartbeatAck))
+        assert conn.of_type(HeartbeatAck)[0].last_stream_id_received == 4
+        # Nothing new arrived, so a second ping does not repeat the number.
+        await conn.send(HeartbeatPing())
+        await eventually(lambda: len(conn.of_type(HeartbeatAck)) == 2)
+        assert conn.of_type(HeartbeatAck)[1].last_stream_id_received == 5
+        await client.stop()
+
+
+async def _answer_logins(server: FakeMcsServer, rejections: int) -> None:
+    """Reject the first ``rejections`` logins, then accept."""
+    answered = 0
+    while True:
+        await asyncio.sleep(0.01)
+        for conn in server.connections[answered:]:
+            await eventually(partial(conn.of_type, LoginRequest))
+            response = LoginResponse(id="android-0")
+            if answered < rejections:
+                response.error.code = 5
+                response.error.message = "bad token"
+            await conn.send(response)
+            answered += 1
+
+
+@pytest.mark.asyncio
+async def test_login_refusals_are_counted_reported_and_reset_on_success() -> None:
+    seen: list[int] = []
+    async with FakeMcsServer(answer_login=False) as server:
+        answering = asyncio.create_task(_answer_logins(server, rejections=3))
+        client = _client(server, _ignore, on_login_rejected=seen.append)
+        await client.start()
+        await eventually(lambda: client.connected)
+        assert seen == [1, 2, 3]
+        assert client.login_rejections == 0
+        await client.stop()
+        answering.cancel()

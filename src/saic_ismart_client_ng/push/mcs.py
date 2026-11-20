@@ -74,6 +74,7 @@ class McsMessage:
 
 MessageCallback = Callable[[McsMessage], Any]
 StateCallback = Callable[[bool], Any]
+RejectedCallback = Callable[[int], Any]
 Connection = tuple[asyncio.StreamReader, asyncio.StreamWriter]
 ConnectionFactory = Callable[[], Awaitable[Connection]]
 
@@ -98,6 +99,7 @@ class McsClient:
         on_message: MessageCallback,
         *,
         on_connection_state: StateCallback | None = None,
+        on_login_rejected: RejectedCallback | None = None,
         persistent_ids: list[str] | None = None,
         server_heartbeat_interval: int = 10,
         client_heartbeat_interval: float = 20.0,
@@ -110,6 +112,7 @@ class McsClient:
         self._security_token = security_token
         self._on_message = on_message
         self._on_state = on_connection_state
+        self._on_rejected = on_login_rejected
         self._persistent_ids: list[str] = list(persistent_ids or [])
         self._server_hb = server_heartbeat_interval
         self._client_hb = client_heartbeat_interval
@@ -132,6 +135,10 @@ class McsClient:
         self.last_connected_at: float | None = None
         self.last_message_at: float | None = None
         self.reconnects = 0
+        # Logins in a row that Google answered with an error. A dead network does
+        # not count; only an explicit refusal does, which suggests the identity
+        # itself is no longer accepted.
+        self.login_rejections = 0
 
     # --- public ---------------------------------------------------------------
 
@@ -185,6 +192,14 @@ class McsClient:
                 self._on_state(value)
             except Exception:
                 logger.exception("MCS connection-state callback failed")
+
+    def _notify_rejected(self) -> None:
+        if self._on_rejected is None:
+            return
+        try:
+            self._on_rejected(self.login_rejections)
+        except Exception:
+            logger.exception("MCS login-rejected callback failed")
 
     # --- wire format -----------------------------------------------------------
 
@@ -288,10 +303,13 @@ class McsClient:
 
         if isinstance(message, LoginResponse):
             if message.HasField("error") and message.error.code != 0:
+                self.login_rejections += 1
+                self._notify_rejected()
                 msg = (
                     f"MCS login rejected: {message.error.code} {message.error.message}"
                 )
                 raise ConnectionResetError(msg)
+            self.login_rejections = 0
             self._persistent_ids = []
             self._reconnect_delay = self._reconnect_min
             self._set_connected(True)

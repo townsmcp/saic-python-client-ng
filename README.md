@@ -66,6 +66,26 @@ Things worth knowing:
   before acting on one.
 * A connected client does not prove pushes are arriving. Keep polling as a
   slow fallback.
+* If Google refuses the login several times in a row, `credentials_rejected`
+  becomes true (and `on_credentials_rejected` fires once). Call `renew()` and
+  log in to SAIC again with the new token. Plain network failures do not count.
+
+### Notification switches
+
+The notifications in the app (Vehicle Fault, Vehicle Start, ...) are switches on
+the vehicle. SAIC seems to start sending some messages, finished charging among
+them, only when a switch changes from off to on, not when it is already on.
+`rearm_alarm_switches` does what unticking and re-ticking in the app does:
+
+```python
+results = await api.rearm_alarm_switches(vin, pause=10)  # Fault and Start by default
+for result in results:
+    print(result.alarm_type, result.off_confirmed, result.on_confirmed)
+```
+
+Each type is sent as its own request, with a read-back after each change. The
+switch is always turned back on, even if something fails in between.
+`set_alarm_switches(types, vin, enabled=False)` turns types off directly.
 
 ## Errors
 

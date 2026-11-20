@@ -26,3 +26,12 @@ class AlarmSwitchResp:
 class AlarmSwitchReq:
     vin: str
     alarmSwitchList: list[AlarmSwitch] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class AlarmRearmResult:
+    """What happened to one alarm type while it was switched off and on again."""
+
+    alarm_type: AlarmType
+    off_confirmed: bool
+    on_confirmed: bool

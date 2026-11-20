@@ -6,6 +6,7 @@ authors = [
     { name = "James Townsend" },
 ]
 readme = "README.md"
+license-files = ["LICENSE*", "NOTICE", "LICENSES/*"]
 
 classifiers = [
     "Programming Language :: Python :: 3",

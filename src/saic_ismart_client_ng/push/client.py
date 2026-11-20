@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from enum import StrEnum
 import logging
 import time
@@ -19,6 +19,11 @@ logger = logging.getLogger(__name__)
 
 PushCallback = Callable[[PushMessage], Awaitable[None] | None]
 StateCallback = Callable[[bool], Any]
+RejectedCallback = Callable[[], Any]  # plain function; schedule any async work
+
+# Logins refused in a row before the identity is considered dead. One refusal can
+# be a hiccup on Google's side; several in a row mean registering again.
+CREDENTIALS_REJECTED_AFTER = 3
 
 
 class PushState(StrEnum):
@@ -49,16 +54,21 @@ class SaicPushClient:
         credentials: PushCredentials | None = None,
         persistent_ids: list[str] | None = None,
         on_connection_state: StateCallback | None = None,
+        on_credentials_rejected: RejectedCallback | None = None,
         http_client: httpx.AsyncClient | None = None,
         connect: ConnectionFactory | None = None,
+        mcs_options: Mapping[str, Any] | None = None,
     ) -> None:
         self._on_message = on_message
         self._on_state = on_connection_state
+        self._on_credentials_rejected = on_credentials_rejected
         self._credentials = credentials
         self._persistent_ids = list(persistent_ids or [])
         self._http = http_client
         self._owns_http = http_client is None
         self._connect = connect
+        # Advanced tuning passed to McsClient (heartbeat and reconnect timings).
+        self._mcs_options = dict(mcs_options or {})
         self._mcs: McsClient | None = None
         self._registered_at: float | None = None
         self._last_push_at: float | None = None
@@ -82,6 +92,18 @@ class SaicPushClient:
     @property
     def connected(self) -> bool:
         return self.state is PushState.CONNECTED
+
+    @property
+    def credentials_rejected(self) -> bool:
+        """True once Google has refused the login several times in a row.
+
+        The identity is then unlikely to recover; call :meth:`renew` and log in to
+        SAIC again with the new token.
+        """
+        return (
+            self._mcs is not None
+            and self._mcs.login_rejections >= CREDENTIALS_REJECTED_AFTER
+        )
 
     @property
     def registered_at(self) -> float | None:
@@ -125,8 +147,10 @@ class SaicPushClient:
                 self._credentials.security_token,
                 self._handle,
                 on_connection_state=self._on_state,
+                on_login_rejected=self._login_rejected,
                 persistent_ids=self._persistent_ids,
                 connect=self._connect,
+                **self._mcs_options,
             )
             await self._mcs.start()
         return self._credentials
@@ -176,6 +200,14 @@ class SaicPushClient:
             confirmed = await unregister(client, credentials)
         self._credentials = None
         return confirmed
+
+    def _login_rejected(self, count: int) -> None:
+        # Fire once, on the refusal that crosses the threshold.
+        if count == CREDENTIALS_REJECTED_AFTER and self._on_credentials_rejected:
+            try:
+                self._on_credentials_rejected()
+            except Exception:
+                logger.exception("Credentials-rejected callback failed")
 
     # --- messages ---------------------------------------------------------------
 

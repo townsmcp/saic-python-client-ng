@@ -15,6 +15,7 @@ from saic_ismart_client_ng.push import (
 )
 
 from .fake_mcs import FakeMcsServer, eventually, make_data
+from .test_push_mcs import _answer_logins
 
 CREDS_A = PushCredentials("111", "222", "token-a", fid="fa", refresh_token="ra")
 CREDS_B = PushCredentials("333", "444", "token-b", fid="fb", refresh_token="rb")
@@ -189,3 +190,25 @@ async def test_unregister_removes_the_registration_and_forgets_it() -> None:
         unregister.assert_awaited_once()
         assert push.credentials is None
         assert push.state is PushState.STOPPED
+
+
+@pytest.mark.asyncio
+async def test_credentials_are_flagged_dead_after_repeated_refusals() -> None:
+    fired: list[str] = []
+    async with FakeMcsServer(answer_login=False) as server:
+        # Never accepts, so the refusals keep coming.
+        answering = asyncio.create_task(_answer_logins(server, rejections=1000))
+        push = SaicPushClient(
+            _ignore,
+            credentials=CREDS_A,
+            connect=server.connect,
+            on_credentials_rejected=lambda: fired.append("rejected"),
+            mcs_options={"reconnect_min": 0.01, "reconnect_max": 0.02},
+        )
+        assert not push.credentials_rejected
+        await push.start()
+        await eventually(lambda: push.credentials_rejected)
+        await asyncio.sleep(0.2)
+        assert fired == ["rejected"]  # once, not on every later refusal
+        await push.stop()
+        answering.cancel()

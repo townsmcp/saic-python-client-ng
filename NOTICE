@@ -12,4 +12,9 @@ in LICENSES/Apache-2.0-home-assistant-mazda.txt):
     httpx, SAIC's Firebase constants, a separate send/receive framing state,
     persistent-id handling, and dead-connection detection.
 
+The message definitions (checkin.proto, android_checkin.proto, mcs.proto) behind
+those generated modules originate in the Chromium project's GCM protocol
+(google_apis/gcm/protocol), BSD 3-Clause, Copyright The Chromium Authors; see
+LICENSES/BSD-3-Clause-chromium.txt.
+
 All other code in this repository is MIT licensed (see LICENSE).
