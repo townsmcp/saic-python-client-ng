@@ -303,9 +303,9 @@ async def test_a_message_is_delivered_before_its_id_is_recorded() -> None:
 
 
 @pytest.mark.asyncio
-async def test_a_message_is_still_delivered_when_its_acknowledgement_cannot_be_sent() -> (
-    None
-):
+async def test_a_message_is_still_delivered_when_its_acknowledgement_cannot_be_sent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A connection that drops before the acknowledgement must not lose the push."""
     delivered: list[McsMessage] = []
     client = McsClient("1", "2", delivered.append)
@@ -313,7 +313,7 @@ async def test_a_message_is_still_delivered_when_its_acknowledgement_cannot_be_s
     async def refuse(_message: Any) -> None:
         raise ConnectionResetError("MCS not connected")
 
-    client._send = refuse  # type: ignore[method-assign]
+    monkeypatch.setattr(client, "_send", refuse)
     with pytest.raises(ConnectionResetError):
         await client._handle_data(make_data("p1", messageType="323"))
     assert [m.persistent_id for m in delivered] == ["p1"]
