@@ -60,6 +60,14 @@ _TYPE_BY_TAG: dict[int, type] = {tag: cls for cls, tag in _TAG_BY_TYPE.items()}
 # needs the ones it has not yet been told we received.
 _MAX_PERSISTENT_IDS = 100
 
+# Real stanzas are a few KB (an FCM data payload is capped at 4 KB), so a length
+# prefix far beyond that means the stream is not one we can parse. Without a
+# limit, a garbled prefix would make the reader wait for gigabytes that never
+# arrive.
+_MAX_MESSAGE_SIZE = 1 << 20
+# Five varint bytes carry 35 bits, more than any 32-bit length needs.
+_MAX_VARINT_BYTES = 5
+
 
 @dataclass(frozen=True)
 class McsMessage:
@@ -81,6 +89,10 @@ ConnectionFactory = Callable[[], Awaitable[Connection]]
 
 class _ServerClose(Exception):
     """The server sent Close, which is its normal way of asking for a reconnect."""
+
+
+class _MalformedStream(Exception):
+    """The bytes received do not follow the MCS framing; reconnect and start over."""
 
 
 async def _default_connect() -> Connection:
@@ -218,12 +230,14 @@ class McsClient:
 
     async def _read_varint(self) -> int:
         result = shift = 0
-        while True:
+        for _ in range(_MAX_VARINT_BYTES):
             (byte,) = struct.unpack("B", await self._reader.readexactly(1))  # type: ignore[union-attr]
             result |= (byte & 0x7F) << shift
             if not byte & 0x80:
                 return int(result)
             shift += 7
+        msg = f"length prefix longer than {_MAX_VARINT_BYTES} bytes"
+        raise _MalformedStream(msg)
 
     async def _send(self, message: Any) -> None:
         writer = self._writer
@@ -249,6 +263,9 @@ class McsClient:
         else:
             (tag,) = struct.unpack("B", await reader.readexactly(1))
         size = await self._read_varint()
+        if size > _MAX_MESSAGE_SIZE:
+            msg = f"message size {size} exceeds {_MAX_MESSAGE_SIZE} bytes"
+            raise _MalformedStream(msg)
         body = await reader.readexactly(size)
         message_type = _TYPE_BY_TAG.get(tag)
         if message_type is None:
@@ -327,18 +344,6 @@ class McsClient:
             await self._send(ack)
 
     async def _handle_data(self, message: DataMessageStanza) -> None:
-        # Acknowledge first, so a failing callback can never make Google resend it.
-        if message.persistent_id:
-            self._persistent_ids.append(message.persistent_id)
-            del self._persistent_ids[:-_MAX_PERSISTENT_IDS]
-            ack = IqStanza()
-            ack.type = IqStanza.SET
-            ack.id = ""
-            ack.extension.id = MCS_SELECTIVE_ACK_ID
-            selective = SelectiveAck()
-            selective.id.extend([message.persistent_id])
-            ack.extension.data = selective.SerializeToString()
-            await self._send(ack)
         data = {item.key: item.value for item in message.app_data}
         self.last_message_at = time.time()
         parsed = McsMessage(
@@ -347,12 +352,30 @@ class McsClient:
             sent_ms=int(message.sent) if message.HasField("sent") else None,
             ttl=int(message.ttl) if message.HasField("ttl") else None,
         )
+        # Deliver before acknowledging. Sending the acknowledgement fails when the
+        # connection has just dropped, and the next login reports every recorded
+        # id as received, so Google would never send a message we had noted but
+        # not delivered. A callback that fails is logged and does not stop the
+        # acknowledgement, so it cannot make Google resend the message either.
         try:
             result = self._on_message(parsed)
             if asyncio.iscoroutine(result):
                 await result
         except Exception:
             logger.exception("MCS message callback failed")
+        if message.persistent_id:
+            ack = IqStanza()
+            ack.type = IqStanza.SET
+            ack.id = ""
+            ack.extension.id = MCS_SELECTIVE_ACK_ID
+            selective = SelectiveAck()
+            selective.id.extend([message.persistent_id])
+            ack.extension.data = selective.SerializeToString()
+            # Recorded only once the acknowledgement is on its way: if it cannot
+            # be sent, the message is still unacknowledged and Google replays it.
+            await self._send(ack)
+            self._persistent_ids.append(message.persistent_id)
+            del self._persistent_ids[:-_MAX_PERSISTENT_IDS]
 
     async def _listen(self) -> None:
         self._reconnect_delay = self._reconnect_min
@@ -370,6 +393,8 @@ class McsClient:
                         await self._handle(message)
             except _ServerClose:
                 logger.debug("MCS: server asked for a reconnect")
+            except _MalformedStream as ex:
+                logger.warning("MCS: %s, reconnecting", ex)
             except (OSError, EOFError, asyncio.IncompleteReadError, ssl.SSLError) as ex:
                 logger.debug("MCS: connection lost: %s", ex)
             except Exception:

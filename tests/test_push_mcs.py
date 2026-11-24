@@ -8,6 +8,7 @@ import pytest
 
 from saic_ismart_client_ng.push._proto.mcs_pb2 import (
     Close,
+    DataMessageStanza,
     HeartbeatAck,
     HeartbeatPing,
     IqStanza,
@@ -15,9 +16,15 @@ from saic_ismart_client_ng.push._proto.mcs_pb2 import (
     LoginResponse,
     SelectiveAck,
 )
-from saic_ismart_client_ng.push.mcs import MCS_SELECTIVE_ACK_ID, McsClient, McsMessage
+from saic_ismart_client_ng.push.mcs import (
+    _MAX_MESSAGE_SIZE,
+    _TAG_BY_TYPE,
+    MCS_SELECTIVE_ACK_ID,
+    McsClient,
+    McsMessage,
+)
 
-from .fake_mcs import FakeMcsServer, eventually, make_data
+from .fake_mcs import FakeMcsServer, _varint, eventually, make_data
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -273,3 +280,84 @@ async def test_login_refusals_are_counted_reported_and_reset_on_success() -> Non
         assert client.login_rejections == 0
         await client.stop()
         answering.cancel()
+
+
+@pytest.mark.asyncio
+async def test_a_message_is_delivered_before_its_id_is_recorded() -> None:
+    """The id only counts as received once the acknowledgement has been sent."""
+    seen_ids_at_delivery: list[list[str]] = []
+    holder: dict[str, McsClient] = {}
+
+    def handler(_message: McsMessage) -> None:
+        seen_ids_at_delivery.append(holder["client"].persistent_ids)
+
+    async with FakeMcsServer() as server:
+        client = _client(server, handler)
+        holder["client"] = client
+        await client.start()
+        await eventually(lambda: client.connected)
+        await server.connections[0].send(make_data("p1", messageType="323"))
+        await eventually(lambda: client.persistent_ids == ["p1"])
+        assert seen_ids_at_delivery == [[]]
+        await client.stop()
+
+
+@pytest.mark.asyncio
+async def test_a_message_is_still_delivered_when_its_acknowledgement_cannot_be_sent() -> (
+    None
+):
+    """A connection that drops before the acknowledgement must not lose the push."""
+    delivered: list[McsMessage] = []
+    client = McsClient("1", "2", delivered.append)
+
+    async def refuse(_message: Any) -> None:
+        raise ConnectionResetError("MCS not connected")
+
+    client._send = refuse  # type: ignore[method-assign]
+    with pytest.raises(ConnectionResetError):
+        await client._handle_data(make_data("p1", messageType="323"))
+    assert [m.persistent_id for m in delivered] == ["p1"]
+    # Not recorded, so the next login does not tell Google it was received and
+    # Google sends it again.
+    assert client.persistent_ids == []
+
+
+async def _send_raw_and_expect_a_new_connection(raw: bytes) -> None:
+    async with FakeMcsServer() as server:
+        # Heartbeat and dead-connection timers are far too long to explain a
+        # reconnect, so only the malformed-stream handling can.
+        client = _client(
+            server, _ignore, client_heartbeat_interval=30.0, dead_after=300.0
+        )
+        await client.start()
+        await eventually(lambda: client.connected)
+        tag = _TAG_BY_TYPE[DataMessageStanza]
+        server.connections[0].writer.write(bytes([tag]) + raw)
+        await server.connections[0].writer.drain()
+        await eventually(lambda: len(server.connections) == 2)
+        await eventually(lambda: client.connected)
+        await client.stop()
+
+
+@pytest.mark.asyncio
+async def test_an_absurd_message_size_makes_the_client_reconnect() -> None:
+    await _send_raw_and_expect_a_new_connection(_varint(_MAX_MESSAGE_SIZE + 1))
+
+
+@pytest.mark.asyncio
+async def test_an_endless_length_prefix_makes_the_client_reconnect() -> None:
+    await _send_raw_and_expect_a_new_connection(b"\xff" * 6)
+
+
+@pytest.mark.asyncio
+async def test_a_message_at_the_size_limit_is_still_read() -> None:
+    received: list[McsMessage] = []
+    async with FakeMcsServer() as server:
+        client = _client(server, received.append)
+        await client.start()
+        await eventually(lambda: client.connected)
+        big = make_data("p1", messageType="323", filler="x" * 100_000)
+        await server.connections[0].send(big)
+        await eventually(lambda: received)
+        assert len(received[0].data["filler"]) == 100_000
+        await client.stop()
